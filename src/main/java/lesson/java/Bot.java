@@ -1,117 +1,23 @@
 package lesson.java;
 
+import functions.FilterOperation;
 import org.telegram.telegrambots.bots.TelegramLongPollingBot;
 import org.telegram.telegrambots.meta.api.methods.GetFile;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
 import org.telegram.telegrambots.meta.api.methods.send.SendPhoto;
 import org.telegram.telegrambots.meta.api.objects.InputFile;
-import org.telegram.telegrambots.meta.api.objects.Message;
 import org.telegram.telegrambots.meta.api.objects.PhotoSize;
 import org.telegram.telegrambots.meta.api.objects.Update;
-import org.telegram.telegrambots.meta.api.objects.replykeyboard.ReplyKeyboardMarkup;
-import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.KeyboardButton;
-import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.KeyboardRow;
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
-import utils.PhotoMessage;
+import utils.ImageUtils;
+import utils.RgbMater;
 
-import java.io.File;
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.logging.Level;
-
-import static utils.PhotoMessage.processingImage;
+import java.awt.image.BufferedImage;
+import java.io.*;
+import java.net.URL;
 
 public class Bot extends TelegramLongPollingBot {
-
-
-    @Override
-    public void onUpdateReceived(Update update) {
-        Message message = update.getMessage();
-        String mesText = update.getMessage().getText();
-        String chatId = message.getChatId().toString();
-        try {
-            ArrayList<String> photoPaths = new ArrayList<>(PhotoMessage.savePhotos(getFilesByMessage(message), getBotToken()));
-            for (String path : photoPaths) {
-                    processingImage(path);
-                    execute(preparePhotoMessage(path, chatId));
-
-            }
-            sendMsg(update.getMessage().getChatId().toString(),mesText);
-        } catch (IOException | TelegramApiException e) {
-            throw new RuntimeException(e);
-        }
-
-
-    }
-
-    public synchronized void setButtons(SendMessage sendMessage) {
-        // Создаем клавиуатуру
-        ReplyKeyboardMarkup replyKeyboardMarkup = new ReplyKeyboardMarkup();
-        sendMessage.setReplyMarkup(replyKeyboardMarkup);
-        replyKeyboardMarkup.setSelective(true);
-        replyKeyboardMarkup.setResizeKeyboard(true);
-        replyKeyboardMarkup.setOneTimeKeyboard(false);
-
-        // Создаем список строк клавиатуры
-        List<KeyboardRow> keyboard = new ArrayList<>();
-
-        // Первая строчка клавиатуры
-        KeyboardRow keyboardFirstRow = new KeyboardRow();
-        // Добавляем кнопки в первую строчку клавиатуры
-        keyboardFirstRow.add(new KeyboardButton("“Привет”"));
-
-        // Вторая строчка клавиатуры
-        KeyboardRow keyboardSecondRow = new KeyboardRow();
-        // Добавляем кнопки во вторую строчку клавиатуры
-        keyboardSecondRow.add(new KeyboardButton("“Помощь”"));
-
-        // Добавляем все строчки клавиатуры в список
-        keyboard.add(keyboardFirstRow);
-        keyboard.add(keyboardSecondRow);
-        // и устанваливаем этот список нашей клавиатуре
-        replyKeyboardMarkup.setKeyboard(keyboard);
-    }
-
-    public  void sendMsg(String chatId, String s) {
-        SendMessage sendMessage = new SendMessage();
-        sendMessage.enableMarkdown(true);
-        sendMessage.setChatId(chatId);
-        sendMessage.setText(s);
-        try {
-            execute(sendMessage);
-        } catch (TelegramApiException e) {
-            throw new RuntimeException();
-        }
-    }
-
-    private static SendPhoto preparePhotoMessage(String fileNameImage, String chatId) {
-        SendPhoto sendPhoto = new SendPhoto();
-        sendPhoto.setChatId(chatId);
-        InputFile inputFile = new InputFile();
-        inputFile.setMedia(new File(fileNameImage));
-        sendPhoto.setPhoto(inputFile);
-        sendPhoto.setCaption("This dog");
-        return sendPhoto;
-    }
-
-    private List<org.telegram.telegrambots.meta.api.objects.File> getFilesByMessage(Message message) {
-        List<PhotoSize> photoSizes = message.getPhoto();
-        ArrayList<org.telegram.telegrambots.meta.api.objects.File> files = new ArrayList<>();
-        for (PhotoSize photoSize : photoSizes) {
-            final String fileId = photoSize.getFileId();
-            try {
-                files.add(sendApiMethod(new GetFile(fileId)));
-
-            } catch (TelegramApiException e) {
-                throw new RuntimeException(e);
-            }
-
-        }
-        return files;
-    }
-
-
+    String localNameFile = "ssssss";
     @Override
     public String getBotUsername() {
         return "magk95_bot";
@@ -122,5 +28,82 @@ public class Bot extends TelegramLongPollingBot {
         return "7259093033:AAG-sIuZ-7DcP-crun47CnDU7DW9MGNrQLo";
     }
 
+    @Override
+    public void onUpdateReceived(Update update) {
+
+        String message_text = update.getMessage().getText();
+        String chat_id = String.valueOf(update.getMessage().getChatId());
+        if (update.hasMessage() && update.getMessage().hasText()) {
+            zerkloText(message_text, chat_id);
+        } else if (update.hasMessage() && update.getMessage().hasPhoto()) {
+            PhotoSize photo = update.getMessage().getPhoto().get(0);
+            String fileId = photo.getFileId();
+            org.telegram.telegrambots.meta.api.objects.File  file;
+            try {
+                file = sendApiMethod(new GetFile(fileId));
+                String imageUrl = "https://api.telegram.org/file/bot" + getBotToken() + "/" + file.getFilePath();
+                saveImage(imageUrl, localNameFile);
+
+            } catch (TelegramApiException | IOException e) {
+                throw new RuntimeException(e);
+            }
+
+            try {
+                processingImage(localNameFile);
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+            SendPhoto msg = new SendPhoto();
+            InputFile inputFile = new InputFile();
+            inputFile.setMedia(new File(localNameFile));
+            msg.setChatId(chat_id);
+            msg.setPhoto(inputFile);
+
+            try {
+                execute(msg);
+            } catch (TelegramApiException e) {
+                e.printStackTrace();
+            }
+        }
+    }
+
+
+
+
+
+    private void zerkloText(String message_text, String chat_id) {
+        SendMessage message = new SendMessage();
+        message.setChatId(chat_id);
+        message.setText(message_text);
+
+        try {
+            execute(message);
+        } catch (TelegramApiException e) {
+            e.printStackTrace();
+        }
+    }
+
+    public static void saveImage(String url, String fileName) throws IOException {
+        URL urlModel = new URL(url);
+        InputStream inputStream = urlModel.openStream();
+        OutputStream outputStream = new FileOutputStream(fileName);
+        byte[] b = new byte[2048];
+        int length;
+        while ((length = inputStream.read(b)) != -1) {
+            outputStream.write(b, 0, length);
+        }
+        inputStream.close();
+        outputStream.close();
+    }
+
+
+    public static void processingImage(String fileName) throws IOException {
+        BufferedImage image = ImageUtils.getImage(fileName);
+        RgbMater rgbMater = new RgbMater(image);
+        rgbMater.changeImage(FilterOperation::onlyRed);
+        ImageUtils.saveImage(rgbMater.getImage(), fileName);
+    }
+
 
 }
+
